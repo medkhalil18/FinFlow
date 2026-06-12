@@ -1,15 +1,18 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-function getJwtSecret(): Uint8Array {
+function getJwtSecret() {
   const secret = process.env.JWT_SECRET;
+
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
       throw new Error("JWT_SECRET is required in production");
     }
-    return new TextEncoder().encode("finflow-secret-key-change-in-production-2024");
+
+    return "finflow-secret-key-change-in-production-2024";
   }
-  return new TextEncoder().encode(secret);
+
+  return secret;
 }
 
 const JWT_SECRET = new TextEncoder().encode(getJwtSecret());
@@ -30,17 +33,18 @@ export async function createToken(userId: string): Promise<string> {
   return new SignJWT({ userId })
     .setProtectedHeader({ alg: "HS256" })
     .setExpirationTime("7d")
-    .sign(getJwtSecret());   // ← call the function, don't use the old JWT_SECRET constant
+    .sign(JWT_SECRET);
 }
 
 export async function verifyToken(token: string): Promise<string | null> {
   try {
-    const { payload } = await jwtVerify(token, getJwtSecret());  // ← same here
+    const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload.userId as string;
   } catch {
     return null;
   }
 }
+
 export async function getCurrentUserId(): Promise<string | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get("finflow_token")?.value;
