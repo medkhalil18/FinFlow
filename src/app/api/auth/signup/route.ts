@@ -18,24 +18,33 @@ export async function POST(req: NextRequest) {
     }
 
     const existing = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
+
     if (existing.length > 0) {
       return NextResponse.json({ error: "Email already registered" }, { status: 400 });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+
     const [user] = await db.insert(users).values({
       email: email.toLowerCase(),
       passwordHash,
     }).returning({ id: users.id });
 
-    const token = await createToken(user.id);
+    if (!user) {
+      throw new Error("User insert returned no id");
+    }
 
+    const token = await createToken(user.id);
     const res = NextResponse.json({ success: true, userId: user.id });
     res.cookies.set("finflow_token", token, getSessionCookieOptions());
-
     return res;
-  } catch (error) {
+
+  } catch (error: any) {
     console.error("Signup error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    // Return the real error message in non-production to debug faster
+    const message = process.env.NODE_ENV === "production"
+      ? "Internal server error"
+      : error?.message || String(error);
+    return NextResponse.json({ error: message, stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined }, { status: 500 });
   }
 }
